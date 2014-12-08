@@ -19,10 +19,14 @@ class ofApp : public ofBaseApp{
 		void dragEvent(ofDragInfo dragInfo);
 		void gotMessage(ofMessage msg);
     
+        ofMatrix3x3 mat4ToMat3(ofMatrix4x4 _mat4);
+    
+        ofEasyCam cam; // add mouse controls for camera movement
         ofMesh mesh;
         ofMesh mPlane;
+        ofShader diffuseShader;
     
         int width;
         int height;
-        int size;
+        int stepSize;
 };

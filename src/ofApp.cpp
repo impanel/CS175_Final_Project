@@ -5,19 +5,22 @@ void ofApp::setup(){
     
     height = 10;
     width = 10;
-    size = 40;
+    stepSize = 40;
     
     mesh.setMode(OF_PRIMITIVE_TRIANGLE_STRIP);
     mesh.enableColors();
     mesh.enableIndices();
+    
+    diffuseShader.load("shaders/diffuse.vert", "shaders/diffuse.frag");
     
     
     for (int x = 0; x < width; x++)
     {
         for (int y = 0; y < height; y++)
         {
-            mesh.addVertex(ofPoint(x * size, y * size, 0));
+            mesh.addVertex(ofPoint(x * stepSize, y * stepSize, 0));
             mesh.addColor(ofFloatColor(1.0, 0, 0));
+            //mesh.setNormal(<#ofIndexType index#>, <#const ofVec3f &n#>)
         }
     }
     
@@ -50,22 +53,78 @@ void ofApp::update(){
 
 //--------------------------------------------------------------
 void ofApp::draw(){
-    glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+    
+    
+    glEnable(GL_DEPTH_TEST);
+    cam.begin();
+    
+    ofSetColor(255);
+    
     ofPushMatrix();
-    ofTranslate(300, 300);
-    mesh.draw(OF_MESH_WIREFRAME);
+    // translate mesh to world center
+    ofTranslate((-1 * (stepSize * width - stepSize) / 2), (-1 * (stepSize * height - stepSize) / 2), 0);
+    ofScale(1., 1., 1.);
+    
+    diffuseShader.begin();
+    
+    ofMatrixStack matrixStack(*ofGetWindowPtr());
+    ofMatrix4x4 modelViewMatrix = matrixStack.getModelViewMatrix();
+    
+    ofMatrix3x3 normalMatrix = mat4ToMat3(modelViewMatrix);
+    normalMatrix.invert();
+    normalMatrix.transpose();
+    
+    ofMatrix4x4 projectionMatrix = matrixStack.getProjectionMatrix();
+    
+    diffuseShader.setUniform4f("uColor", 1.0, 0, 0, 1.0);
+    diffuseShader.setUniformMatrix4f("ModelViewMatrix", modelViewMatrix);
+    diffuseShader.setUniformMatrix3f("NormalMatrix", normalMatrix);
+    diffuseShader.setUniformMatrix4f("ProjectionMatrix", projectionMatrix);
+    
+    int lX = 400;
+    int lY = 180;
+    int lZ = - 180;
+    
+    ofMatrix4x4 mVm = cam.getModelViewMatrix();
+    mVm.makeInvertOf(mVm);
+ 
+    ofVec4f lightCoord(lX, lY, lZ, 1);
+    ofVec4f eyeLightCoord;
+    eyeLightCoord = mVm * lightCoord;
+    
+    diffuseShader.setUniform4f("LightPosition", eyeLightCoord.x, eyeLightCoord.y, eyeLightCoord.z, 1.0); // TODO: should be eye coordinates
+    ofSphere(lX, lY, lZ, 20); // represents light position
+    diffuseShader.setUniform3f("Kd", 1.0, 1.0, 1.0); //Diffuse Reflectivity
+    diffuseShader.setUniform3f("Ld", .9, .9, .9); //LightSource Intensity
+
+    mesh.draw(OF_MESH_WIREFRAME); // draw wire mesh
+    //mesh.draw(OF_MESH_FILL); // draw solid mesh
+    
+    diffuseShader.end();
+    
     ofPopMatrix();
     
+    //cout<< cam.getOrientationQuat()<<endl;
+    //cout<< "------------"<<endl;
     
-    vector<ofIndexType> indices = mesh.getIndices();
+    cam.end();
+    glDisable(GL_DEPTH_TEST);
+
     
-    for (int i = 0; i < height - 1; i++)
-    {
-        for (int j = 0; j < width - 1; j++)
-        {
-            //ofDrawBitmapString(ofToString(indices.at(i * height + j)), mesh.ge);
-        }
-    }
+    // draw interaction area
+    ofRectangle vp = ofGetCurrentViewport();
+    float r = MIN(vp.width, vp.height) * 0.5f;
+    float x = vp.width * 0.5f;
+    float y = vp.height * 0.5f;
+    
+    ofPushStyle();
+    ofSetLineWidth(3);
+    ofSetColor(255, 255, 0);
+    ofNoFill();
+    glDepthMask(false);
+    ofCircle(x, y, r);
+    glDepthMask(true);
+    ofPopStyle();
 }
 
 //--------------------------------------------------------------
@@ -112,3 +171,19 @@ void ofApp::gotMessage(ofMessage msg){
 void ofApp::dragEvent(ofDragInfo dragInfo){ 
 
 }
+
+//--------------------------------------------------------------
+
+ofMatrix3x3 ofApp::mat4ToMat3(ofMatrix4x4 _mat4)
+{
+    return ofMatrix3x3(_mat4._mat[0][0],
+                       _mat4._mat[0][1],
+                       _mat4._mat[0][2],
+                       _mat4._mat[1][0],
+                       _mat4._mat[1][1],
+                       _mat4._mat[1][2],
+                       _mat4._mat[2][0],
+                       _mat4._mat[2][1],
+                       _mat4._mat[2][2]);
+}
+
