@@ -25,7 +25,16 @@ class ofApp : public ofBaseApp{
         ofMesh mesh;
         ofMesh mPlane;
         ofShader diffuseShader;
+        ofSoundPlayer sound;
+        //float * smoothFFT;
+        vector<float> smoothFFT;
+        int nBands;
     
+        //ofImage texture;
+        ofTexture texture;
+    
+        int rows;
+        int columns;
         int width;
         int height;
         int stepSize;
