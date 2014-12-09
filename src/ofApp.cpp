@@ -11,8 +11,9 @@ void ofApp::setup(){
     mesh.enableColors();
     mesh.enableIndices();
     
-    diffuseShader.load("shaders/diffuse.vert", "shaders/diffuse.frag");
+    ofVec3f normalVec = ofVec3f(0,0,1); // normals pointing up
     
+    diffuseShader.load("shaders/diffuse.vert", "shaders/diffuse.frag");
     
     for (int x = 0; x < width; x++)
     {
@@ -20,7 +21,7 @@ void ofApp::setup(){
         {
             mesh.addVertex(ofPoint(x * stepSize, y * stepSize, 0));
             mesh.addColor(ofFloatColor(1.0, 0, 0));
-            //mesh.setNormal(<#ofIndexType index#>, <#const ofVec3f &n#>)
+            mesh.addNormal(normalVec);
         }
     }
     
@@ -44,6 +45,11 @@ void ofApp::setup(){
             }
         }
     }
+    
+    cout<< mesh.hasNormals() << endl;
+    
+//   vector <ofIndexType> index = mesh.getIndices();
+//    ofVec3f normals = ofVec3f(0, 0 , 1);
 }
 
 //--------------------------------------------------------------
@@ -81,24 +87,25 @@ void ofApp::draw(){
     diffuseShader.setUniformMatrix3f("NormalMatrix", normalMatrix);
     diffuseShader.setUniformMatrix4f("ProjectionMatrix", projectionMatrix);
     
-    int lX = 400;
+    int lX = 180;
     int lY = 180;
-    int lZ = - 180;
+    int lZ = 180;
     
     ofMatrix4x4 mVm = cam.getModelViewMatrix();
-    mVm.makeInvertOf(mVm);
- 
+    
     ofVec4f lightCoord(lX, lY, lZ, 1);
     ofVec4f eyeLightCoord;
-    eyeLightCoord = mVm * lightCoord;
+    eyeLightCoord = mVm * lightCoord; // eye coord vector = modelview matrix * object in world coordinates
     
     diffuseShader.setUniform4f("LightPosition", eyeLightCoord.x, eyeLightCoord.y, eyeLightCoord.z, 1.0); // TODO: should be eye coordinates
-    ofSphere(lX, lY, lZ, 20); // represents light position
+    //ofSphere(eyeLightCoord.x, eyeLightCoord.y, eyeLightCoord.z, 20); // represents light position
+    //ofSphere(lX, lY, lZ, 20); // test sphere
+    
     diffuseShader.setUniform3f("Kd", 1.0, 1.0, 1.0); //Diffuse Reflectivity
     diffuseShader.setUniform3f("Ld", .9, .9, .9); //LightSource Intensity
 
-    mesh.draw(OF_MESH_WIREFRAME); // draw wire mesh
-    //mesh.draw(OF_MESH_FILL); // draw solid mesh
+    //mesh.draw(OF_MESH_WIREFRAME); // draw wire mesh
+    mesh.draw(OF_MESH_FILL); // draw solid mesh
     
     diffuseShader.end();
     
