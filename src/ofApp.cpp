@@ -3,14 +3,18 @@
 //--------------------------------------------------------------
 void ofApp::setup(){
     
-    ofLoadImage(texture, "test.png");
-
+    //ofLoadImage(texture, "test.png");
+    //texture.loadImage("test.png");
+    
     // square mesh setup
     columns = 50;
     rows = columns;
     width = 360;
     height = width;
     stepSize = width/columns;
+    
+    texture.allocate(width, height, OF_IMAGE_GRAYSCALE);
+    dispFbo.allocate(width, height, OF_IMAGE_GRAYSCALE);
     
     mesh.setMode(OF_PRIMITIVE_TRIANGLE_STRIP);
     mesh.enableColors();
@@ -60,11 +64,11 @@ void ofApp::setup(){
     sound.loadSound("Kuedo-Mtzpn.mp3");
     
     //create array for smoothing the fft values
-    nBands = 10;
+    nBands = columns;
     
     for (int i = 0; i < nBands; i++)
         smoothFFT.push_back(0);
-
+    
     //start the song
     //sound.setVolume(0);
     sound.play();
@@ -76,8 +80,6 @@ void ofApp::update(){
     
     ofSoundUpdate(); // update the sound system
     
-    //texture.getTextureReference().bind(); //if we were using single shader
-    
     // grab the fft and smooth values
     float * val = ofSoundGetSpectrum(nBands);
     for (int i = 0; i < nBands; i++){
@@ -88,6 +90,41 @@ void ofApp::update(){
         // ... or replace with higher incoming value
         if (smoothFFT.at(i) < val[i]) smoothFFT[i] = val[i];
     }
+    
+    //z = (cos( 0.5sqrt(x^2+y^2)-6n)/(0.5(x^2+y^2)+1+2n)­, n={0...10}
+    unsigned char * charPixels = new unsigned char[width * height]; //pixels to fill
+    
+    //draw in FBO
+    //dispFbo.begin();
+    
+    int n = ofGetFrameNum()%10;
+    //cout << n << endl;
+    
+    for (int x = 0 ; x < width; x++)
+    {
+        for (int y = 0 ; y < height; y++)
+        {
+            charPixels[x * width + y] = ofMap(smoothFFT.at(ofMap(y, 0, height, 0, nBands)), 0, 1, 0, 255);
+        }
+    }
+    
+//    for (int i = 0 ; i < width * height; i++)
+//    {
+//        if(i < (width * height)/2)
+//            charPixels[i] = 255;
+//        else
+//            charPixels[i] = 0;
+//    }
+    
+    ofSetColor(255);
+    
+    ofPixels pixels;
+    pixels.allocate(width, height, OF_IMAGE_GRAYSCALE);
+    pixels.setFromExternalPixels(charPixels, width, height, 1);
+    texture.setFromPixels(pixels);
+    //texture.draw(0,0);
+    
+    //dispFbo.end();
 }
 
 //--------------------------------------------------------------
@@ -95,11 +132,13 @@ void ofApp::draw(){
     
     ofDisableAlphaBlending();
     glEnable(GL_DEPTH_TEST);
+    cam.setFov(90);
     cam.begin();
     
     ofSetColor(255);
     
     ofPushMatrix();
+    
     // translate mesh to world center
     ofTranslate((-1 * (width) / 2), (-1 * (height) / 2), 0);
     ofScale(1., 1., 1.);
@@ -119,13 +158,14 @@ void ofApp::draw(){
     diffuseShader.setUniformMatrix4f("ModelViewMatrix", modelViewMatrix);
     diffuseShader.setUniformMatrix3f("NormalMatrix", normalMatrix);
     diffuseShader.setUniformMatrix4f("ProjectionMatrix", projectionMatrix);
-    diffuseShader.setUniformTexture("dispTex", texture, 0);
+    diffuseShader.setUniformTexture("dispTex", texture.getTextureReference(), 0);
+    //diffuseShader.setUniformTexture("dispTex", dispFbo.getTextureReference(), 0);
     
     int lX = 180;
     int lY = 180;
     int lZ = 180;
     
-    float dispScale = 50;
+    float dispScale = 100;
     
     ofMatrix4x4 mVm = cam.getModelViewMatrix();
     
@@ -140,7 +180,7 @@ void ofApp::draw(){
     diffuseShader.setUniform3f("Kd", 1.0, 1.0, 1.0); //Diffuse Reflectivity
     diffuseShader.setUniform3f("Ld", .9, .9, .9); //LightSource Intensity
     diffuseShader.setUniform1f("dispScale", dispScale);
-
+    
     mesh.draw(OF_MESH_WIREFRAME); // draw wire mesh
     //mesh.draw(OF_MESH_FILL); // draw solid mesh
     
@@ -153,7 +193,7 @@ void ofApp::draw(){
     
     cam.end();
     glDisable(GL_DEPTH_TEST);
-
+    
     
     // draw interaction area
     ofRectangle vp = ofGetCurrentViewport();
@@ -181,51 +221,55 @@ void ofApp::draw(){
     }
     
     texture.draw(0, 0);
+    //dispFbo.draw(0, 0);
+    
+    // draw FrameRate
+    ofDrawBitmapString(ofToString((int)ofGetFrameRate()), ofPoint(ofGetWidth() - 30, ofGetHeight() - 10));
 }
 
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key){
-
+    
 }
 
 //--------------------------------------------------------------
 void ofApp::keyReleased(int key){
-
+    
 }
 
 //--------------------------------------------------------------
 void ofApp::mouseMoved(int x, int y ){
-
+    
 }
 
 //--------------------------------------------------------------
 void ofApp::mouseDragged(int x, int y, int button){
-
+    
 }
 
 //--------------------------------------------------------------
 void ofApp::mousePressed(int x, int y, int button){
-
+    
 }
 
 //--------------------------------------------------------------
 void ofApp::mouseReleased(int x, int y, int button){
-
+    
 }
 
 //--------------------------------------------------------------
 void ofApp::windowResized(int w, int h){
-
+    
 }
 
 //--------------------------------------------------------------
 void ofApp::gotMessage(ofMessage msg){
-
+    
 }
 
 //--------------------------------------------------------------
-void ofApp::dragEvent(ofDragInfo dragInfo){ 
-
+void ofApp::dragEvent(ofDragInfo dragInfo){
+    
 }
 
 //--------------------------------------------------------------

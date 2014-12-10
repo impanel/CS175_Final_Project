@@ -30,8 +30,10 @@ class ofApp : public ofBaseApp{
         vector<float> smoothFFT;
         int nBands;
     
-        //ofImage texture;
-        ofTexture texture;
+        ofImage texture;
+        //ofTexture texture;
+    
+        ofFbo dispFbo;
     
         int rows;
         int columns;
