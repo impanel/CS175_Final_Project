@@ -1,0 +1,12 @@
+TODO:
+
+Interface:
+• select different songs
+• play/pause songs
+• switch between wireframe/shaded
+
+features
+• play with mesh size, update speed, map size and orientatio
+• adjust lighting and colors, create heat map style
+• stl export?
+• have landscape move backwards instead of replacing rows

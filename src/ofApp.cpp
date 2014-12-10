@@ -12,6 +12,7 @@ void ofApp::setup(){
     width = 360;
     height = width;
     stepSize = width/columns;
+    idx = width - 1;
     
     texture.allocate(width, height, OF_IMAGE_GRAYSCALE);
     dispFbo.allocate(width, height, OF_IMAGE_GRAYSCALE);
@@ -60,6 +61,17 @@ void ofApp::setup(){
     }
     
     
+    //setup array to store all row pixels
+    for (int i = 0 ; i < width; i++)
+    {
+        allPixels.push_back(new unsigned char[height]); //stores row pixels
+        
+        for (int j = 0 ; j < height; j++) {
+            allPixels[i][j] = 0; // fill with black
+        }
+    }
+    
+    
     //Sound stuff
     sound.loadSound("Kuedo-Mtzpn.mp3");
     
@@ -91,23 +103,38 @@ void ofApp::update(){
         if (smoothFFT.at(i) < val[i]) smoothFFT[i] = val[i];
     }
     
-    //z = (cos( 0.5sqrt(x^2+y^2)-6n)/(0.5(x^2+y^2)+1+2n)­, n={0...10}
     unsigned char * charPixels = new unsigned char[width * height]; //pixels to fill
+    unsigned char * rowPixels = new unsigned char[width]; //store a line of pixels
     
-    //draw in FBO
-    //dispFbo.begin();
+ 
     
-    int n = ofGetFrameNum()%10;
-    //cout << n << endl;
+    for (int y = 0 ; y < height; y++)
+    {
+        rowPixels[y] = ofMap(smoothFFT.at(ofMap(y, 0, height, 0, nBands)), 0, 1, 0, 255); // fill one row each frame
+    }
+    allPixels.at(idx) = rowPixels;
+    idx--;
+    if (idx <= 0) {
+        idx = width - 1;
+    }
     
     for (int x = 0 ; x < width; x++)
     {
-        for (int y = 0 ; y < height; y++)
-        {
-            charPixels[x * width + y] = ofMap(smoothFFT.at(ofMap(y, 0, height, 0, nBands)), 0, 1, 0, 255);
-        }
+        //if(idx >= width)
+            //{
+                //allPixels.erase (allPixels.begin()); //removes first element
+                //allPixels.push_back(rowPixels); // pushes back new row
+            //}
+            //else
+            //{
+                //allPixels.push_back(rowPixels);
+                //cout<< allPixels.size() << endl;
+                //cout<<idx<<endl;
+                //idx++;
+            //}
     }
     
+  
 //    for (int i = 0 ; i < width * height; i++)
 //    {
 //        if(i < (width * height)/2)
@@ -115,6 +142,14 @@ void ofApp::update(){
 //        else
 //            charPixels[i] = 0;
 //    }
+    
+    for (int x = 0 ; x < width; x++)
+    {
+        for (int y = 0 ; y < height; y++)
+        {
+            charPixels[x * width + y] = allPixels[x][y];
+        }
+    }
     
     ofSetColor(255);
     
@@ -181,8 +216,8 @@ void ofApp::draw(){
     diffuseShader.setUniform3f("Ld", .9, .9, .9); //LightSource Intensity
     diffuseShader.setUniform1f("dispScale", dispScale);
     
-    mesh.draw(OF_MESH_WIREFRAME); // draw wire mesh
-    //mesh.draw(OF_MESH_FILL); // draw solid mesh
+    //mesh.draw(OF_MESH_WIREFRAME); // draw wire mesh
+    mesh.draw(OF_MESH_FILL); // draw solid mesh
     
     diffuseShader.end();
     

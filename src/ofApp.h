@@ -28,16 +28,17 @@ class ofApp : public ofBaseApp{
         ofSoundPlayer sound;
         //float * smoothFFT;
         vector<float> smoothFFT;
-        int nBands;
+        vector<unsigned char*> allPixels;
     
         ofImage texture;
-        //ofTexture texture;
-    
         ofFbo dispFbo;
     
+        int nBands;
         int rows;
         int columns;
         int width;
         int height;
         int stepSize;
+    
+        int idx;
 };
