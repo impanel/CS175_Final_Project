@@ -24,21 +24,23 @@ class ofApp : public ofBaseApp{
         ofEasyCam cam; // add mouse controls for camera movement
         ofMesh mesh;
         ofMesh mPlane;
-        ofShader diffuseShader;
+        ofShader shader;
         ofSoundPlayer sound;
         //float * smoothFFT;
         vector<float> smoothFFT;
         vector<unsigned char*> allPixels;
     
         ofImage texture;
-        ofFbo dispFbo;
+        ofFbo fbo;
     
-        int nBands;
+        int bands;
         int rows;
         int columns;
         int width;
         int height;
         int stepSize;
     
-        int idx;
+        bool isVerbose;
+        bool isWire;
+        bool isPaused;
 };

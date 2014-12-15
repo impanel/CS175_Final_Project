@@ -10,3 +10,6 @@ features
 • adjust lighting and colors, create heat map style
 • stl export?
 • have landscape move backwards instead of replacing rows
+
+
+implement toon shader

@@ -3,29 +3,33 @@
 //--------------------------------------------------------------
 void ofApp::setup(){
     
-    //ofLoadImage(texture, "test.png");
-    //texture.loadImage("test.png");
+    ofSetFrameRate(60);
     
-    // square mesh setup
+// square mesh setup
     columns = 50;
     rows = columns;
     width = 360;
     height = width;
     stepSize = width/columns;
-    idx = width - 1;
     
+    //set flags
+    isVerbose = false;
+    isWire = false;
+    isPaused = false;
+    
+    //allocate memory for the displacement map
     texture.allocate(width, height, OF_IMAGE_GRAYSCALE);
-    dispFbo.allocate(width, height, OF_IMAGE_GRAYSCALE);
     
+    // set up the mesh
     mesh.setMode(OF_PRIMITIVE_TRIANGLE_STRIP);
     mesh.enableColors();
     mesh.enableIndices();
     
     ofVec3f normalVec = ofVec3f(0,0,1); // normals pointing up
     
-    diffuseShader.load("shaders/diffuse.vert", "shaders/diffuse.frag");
+    shader.load("shaders/phong.vert", "shaders/phong.frag");
     
-    // create the mesh
+    // create the mesh and set vertices, color and normals
     for (int x = 0; x < columns; x++)
     {
         for (int y = 0; y < rows; y++)
@@ -39,7 +43,8 @@ void ofApp::setup(){
         }
     }
     
-    // code for proper indexing from here: http://stackoverflow.com/questions/5915753/generate-a-plane-with-triangle-strips
+    // index the vertices for proper drawing
+    // code for proper indexing found here: http://stackoverflow.com/questions/5915753/generate-a-plane-with-triangle-strips
     for(int y = 0; y < rows - 1; y++)
     {
         if((y & 1) == 0) //even rows
@@ -61,7 +66,7 @@ void ofApp::setup(){
     }
     
     
-    //setup array to store all row pixels
+    //setup array to store all row pixels from FFT values
     for (int i = 0 ; i < width; i++)
     {
         allPixels.push_back(new unsigned char[height]); //stores row pixels
@@ -71,17 +76,16 @@ void ofApp::setup(){
         }
     }
     
-    
     //Sound stuff
     sound.loadSound("Kuedo-Mtzpn.mp3");
     
     //create array for smoothing the fft values
-    nBands = columns;
+    bands = columns;
     
-    for (int i = 0; i < nBands; i++)
+    for (int i = 0; i < bands; i++)
         smoothFFT.push_back(0);
     
-    //start the song
+    //start the song playback
     //sound.setVolume(0);
     sound.play();
     
@@ -93,8 +97,8 @@ void ofApp::update(){
     ofSoundUpdate(); // update the sound system
     
     // grab the fft and smooth values
-    float * val = ofSoundGetSpectrum(nBands);
-    for (int i = 0; i < nBands; i++){
+    float * val = ofSoundGetSpectrum(bands);
+    for (int i = 1; i < bands; i++){
         
         //let value and index slowly sink to 0 ...
         smoothFFT.at(i) = smoothFFT.at(i) * 0.96f;
@@ -103,46 +107,26 @@ void ofApp::update(){
         if (smoothFFT.at(i) < val[i]) smoothFFT[i] = val[i];
     }
     
-    unsigned char * charPixels = new unsigned char[width * height]; //pixels to fill
+    unsigned char * charPixels = new unsigned char[width * height]; //1D pixel array
     unsigned char * rowPixels = new unsigned char[width]; //store a line of pixels
     
- 
-    
-    for (int y = 0 ; y < height; y++)
+    // create a new row off FFT pixels
+    for (int i = 0 ; i < height; i++)
     {
-        rowPixels[y] = ofMap(smoothFFT.at(ofMap(y, 0, height, 0, nBands)), 0, 1, 0, 255); // fill one row each frame
-    }
-    allPixels.at(idx) = rowPixels;
-    idx--;
-    if (idx <= 0) {
-        idx = width - 1;
+        rowPixels[i] = ofMap(smoothFFT.at(ofMap(i, 0, height, 1, bands)), 0, 1, 0, 255); // fill one row each frame
     }
     
-    for (int x = 0 ; x < width; x++)
+    // advance all rows indexes
+    for (int i = 0 ; i < allPixels.size() -1; i++)
     {
-        //if(idx >= width)
-            //{
-                //allPixels.erase (allPixels.begin()); //removes first element
-                //allPixels.push_back(rowPixels); // pushes back new row
-            //}
-            //else
-            //{
-                //allPixels.push_back(rowPixels);
-                //cout<< allPixels.size() << endl;
-                //cout<<idx<<endl;
-                //idx++;
-            //}
+        allPixels.at(i) = allPixels.at(i + 1);
     }
     
-  
-//    for (int i = 0 ; i < width * height; i++)
-//    {
-//        if(i < (width * height)/2)
-//            charPixels[i] = 255;
-//        else
-//            charPixels[i] = 0;
-//    }
+    // add new row to array
+    allPixels.at(allPixels.size() - 1) = rowPixels;
     
+    
+    //transform 2D array to 1D array
     for (int x = 0 ; x < width; x++)
     {
         for (int y = 0 ; y < height; y++)
@@ -151,56 +135,61 @@ void ofApp::update(){
         }
     }
     
-    ofSetColor(255);
-    
+    //store pixels from unsigned char arrays in depth map texture object so we can send it to the vertex shader
     ofPixels pixels;
     pixels.allocate(width, height, OF_IMAGE_GRAYSCALE);
     pixels.setFromExternalPixels(charPixels, width, height, 1);
     texture.setFromPixels(pixels);
-    //texture.draw(0,0);
-    
-    //dispFbo.end();
 }
 
 //--------------------------------------------------------------
 void ofApp::draw(){
+    
+    ofClear(0, 0, 0); //clear the background each frame
     
     ofDisableAlphaBlending();
     glEnable(GL_DEPTH_TEST);
     cam.setFov(90);
     cam.begin();
     
+    // transform the object to have a nice view on start up
     ofSetColor(255);
+    ofRotate(285, 1, 0, 0);
+    ofRotate(215, 0, 0, 1);
+    ofRotate(0, 0, 1, 0);
+    ofScale(2., 2., 2.);
     
     ofPushMatrix();
     
     // translate mesh to world center
     ofTranslate((-1 * (width) / 2), (-1 * (height) / 2), 0);
-    ofScale(1., 1., 1.);
     
-    diffuseShader.begin();
+    //everything that happens after shader.begin is going to the GPU
+    shader.begin();
     
     ofMatrixStack matrixStack(*ofGetWindowPtr());
     ofMatrix4x4 modelViewMatrix = matrixStack.getModelViewMatrix();
     
+    //create the world normal matrix
     ofMatrix3x3 normalMatrix = mat4ToMat3(modelViewMatrix);
     normalMatrix.invert();
     normalMatrix.transpose();
     
     ofMatrix4x4 projectionMatrix = matrixStack.getProjectionMatrix();
     
-    diffuseShader.setUniform4f("uColor", 1.0, 0, 0, 1.0);
-    diffuseShader.setUniformMatrix4f("ModelViewMatrix", modelViewMatrix);
-    diffuseShader.setUniformMatrix3f("NormalMatrix", normalMatrix);
-    diffuseShader.setUniformMatrix4f("ProjectionMatrix", projectionMatrix);
-    diffuseShader.setUniformTexture("dispTex", texture.getTextureReference(), 0);
-    //diffuseShader.setUniformTexture("dispTex", dispFbo.getTextureReference(), 0);
+    shader.setUniformMatrix4f("ModelViewMatrix", modelViewMatrix);
+    shader.setUniformMatrix3f("NormalMatrix", normalMatrix);
+    shader.setUniformMatrix4f("ProjectionMatrix", projectionMatrix);
+    shader.setUniformTexture("DispTex", texture.getTextureReference(), 0);
     
-    int lX = 180;
-    int lY = 180;
+    // light position in world coordinates
+    int lX = 360;
+    int lY = 360;
     int lZ = 180;
     
     float dispScale = 100;
+    
+    float test = smoothFFT.at(smoothFFT.size() - 1);
     
     ofMatrix4x4 mVm = cam.getModelViewMatrix();
     
@@ -208,58 +197,69 @@ void ofApp::draw(){
     ofVec4f eyeLightCoord;
     eyeLightCoord = mVm * lightCoord; // eye coord vector = modelview matrix * object in world coordinates
     
-    diffuseShader.setUniform4f("LightPosition", eyeLightCoord.x, eyeLightCoord.y, eyeLightCoord.z, 1.0);
-    //ofSphere(eyeLightCoord.x, eyeLightCoord.y, eyeLightCoord.z, 20); // represents light position
-    //ofSphere(lX, lY, lZ, 20); // test sphere
+    shader.setUniform4f("LightPosition", eyeLightCoord.x, eyeLightCoord.y, eyeLightCoord.z, 1.0);
     
-    diffuseShader.setUniform3f("Kd", 1.0, 1.0, 1.0); //Diffuse Reflectivity
-    diffuseShader.setUniform3f("Ld", .9, .9, .9); //LightSource Intensity
-    diffuseShader.setUniform1f("dispScale", dispScale);
+    // Material properties
+    shader.setUniform3f("Ka", .0, .9, .9); //Ambient Reflectivity
+    shader.setUniform3f("Kd", .0, .8, .8); //Diffuse Reflectivity
+    shader.setUniform3f("Ks", .0, .9, .9); //Specular Reflectivity
+    shader.setUniform1f("Shininess", .9);
     
-    //mesh.draw(OF_MESH_WIREFRAME); // draw wire mesh
-    mesh.draw(OF_MESH_FILL); // draw solid mesh
+    // Light properties
+    shader.setUniform3f("La", .9, .0, .8); //Ambient Light Intensity
+    shader.setUniform3f("Ld", .9, .0, .8); //Diffuse Light Intensity
+    shader.setUniform3f("Ls", .1, .1, .9); //Specular Light Intensity
     
-    diffuseShader.end();
+    //Dislpacement scalar
+    shader.setUniform1f("DispScale", dispScale);
     
+    if (isWire)
+        mesh.draw(OF_MESH_WIREFRAME); // draw wire mesh
+    else
+        mesh.draw(OF_MESH_FILL); // draw solid mesh
+    
+    shader.end();
+   
     ofPopMatrix();
-    
-    //cout<< cam.getOrientationQuat()<<endl;
-    //cout<< "------------"<<endl;
-    
+
     cam.end();
     glDisable(GL_DEPTH_TEST);
     
     
-    // draw interaction area
-    ofRectangle vp = ofGetCurrentViewport();
-    float r = MIN(vp.width, vp.height) * 0.5f;
-    float x = vp.width * 0.5f;
-    float y = vp.height * 0.5f;
-    
-    ofPushStyle();
-    ofSetLineWidth(3);
-    ofSetColor(255, 255, 255);
-    ofNoFill();
-    glDepthMask(false);
-    ofCircle(x, y, r);
-    glDepthMask(true);
-    ofPopStyle();
-    
-    
-    
-    // draw FFT visuals
-    ofSetColor(255,255,255,255);
-    
-    for (int i = 0; i < nBands; i++)
+    if (isVerbose)
     {
-        ofRect( i * 20, ofGetHeight(), 20, -1 * (smoothFFT.at(i) * 200));
+        // draw interaction area
+        ofRectangle vp = ofGetCurrentViewport();
+        float r = MIN(vp.width, vp.height) * 0.5f;
+        float x = vp.width * 0.5f;
+        float y = vp.height * 0.5f;
+        
+        ofPushStyle();
+        ofSetLineWidth(3);
+        ofSetColor(255, 255, 255);
+        ofNoFill();
+        glDepthMask(false);
+        ofCircle(x, y, r);
+        glDepthMask(true);
+        ofPopStyle();
+        
+        // draw FFT visuals
+        ofSetColor(255,255,255,255);
+        
+        for (int i = 0; i < bands; i++)
+        {
+            ofRect( i * 20 - 20, ofGetHeight(), 20, -1 * (smoothFFT.at(i) * 200));
+        }
+        
+        //draw displacement map in lower right corner
+        texture.draw(ofGetWidth() - 100, ofGetHeight() - 100, 100, 100);
+        ofDrawBitmapString("depth map", ofGetWidth() - 100, ofGetHeight() - 110);
     }
     
-    texture.draw(0, 0);
-    //dispFbo.draw(0, 0);
+    ofDrawBitmapString("press [space] for verbose mode \npress [w] to toggle wireframe render \npress [p] to toggle pause the song", ofPoint(10, 10));
     
-    // draw FrameRate
-    ofDrawBitmapString(ofToString((int)ofGetFrameRate()), ofPoint(ofGetWidth() - 30, ofGetHeight() - 10));
+    // display FrameRate
+    ofDrawBitmapString(ofToString((int)ofGetFrameRate()), ofPoint(ofGetWidth() - 30, 10));
 }
 
 //--------------------------------------------------------------
@@ -269,7 +269,25 @@ void ofApp::keyPressed(int key){
 
 //--------------------------------------------------------------
 void ofApp::keyReleased(int key){
-    
+    if (key == ' ')
+    {
+        isVerbose = !isVerbose;
+    }
+    if (key == 'w')
+    {
+        isWire = !isWire;
+    }
+    if (key == 'p') {
+        if (!isPaused) {
+            sound.setPaused(true);
+            isPaused = true;
+        }
+        else
+        {
+            sound.setPaused(false);
+            isPaused = false;
+        }
+    }
 }
 
 //--------------------------------------------------------------
@@ -309,6 +327,7 @@ void ofApp::dragEvent(ofDragInfo dragInfo){
 
 //--------------------------------------------------------------
 
+// function to convert 4x4 to 3x3 matrix
 ofMatrix3x3 ofApp::mat4ToMat3(ofMatrix4x4 _mat4)
 {
     return ofMatrix3x3(_mat4._mat[0][0],
